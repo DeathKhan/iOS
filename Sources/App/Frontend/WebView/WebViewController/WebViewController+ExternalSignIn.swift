@@ -20,6 +20,10 @@ extension WebViewController {
         )
     }
 
+    func webView(_ webView: WKWebView, didCommit navigation: WKNavigation!) {
+        overlayState?.isShowingExternalPage = isExternalSignInURL(webView.url)
+    }
+
     func webView(
         _ webView: WKWebView,
         decidePolicyFor navigationAction: WKNavigationAction,

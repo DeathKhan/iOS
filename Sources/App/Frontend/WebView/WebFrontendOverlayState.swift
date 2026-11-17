@@ -15,6 +15,11 @@ final class WebFrontendOverlayState: ObservableObject {
 
     @Published var isLoading = false
 
+    /// True while the web view shows a page outside the server: a sign-in page of a proxy in front of it
+    /// (Cloudflare Access, Authelia, ...) or of an identity provider. The frontend never reports a
+    /// connection state there, so the stand-by loader must stay out of the way.
+    @Published var isShowingExternalPage = false
+
     /// Last connection state reported by the web frontend external bus.
     @Published var connectionState: FrontEndConnectionState = .unknown
 

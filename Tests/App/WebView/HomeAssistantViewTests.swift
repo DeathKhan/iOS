@@ -203,6 +203,43 @@ final class HomeAssistantViewTests: XCTestCase {
         await waitUntil { !sut.isFullScreenLoaderMounted }
     }
 
+    /// A sign-in page outside the server (Cloudflare Access, an identity provider) never reports a frontend
+    /// connection state, so the loader comes down as soon as it commits instead of covering it.
+    func testExternalSignInPageUncoversTheWebViewImmediately() {
+        let overlayState = WebFrontendOverlayState()
+        let sut = HomeAssistantViewModel(server: Server.fake(), overlayState: overlayState)
+        overlayState.isLoading = true
+        XCTAssertTrue(sut.isFullScreenLoaderMounted)
+
+        overlayState.isShowingExternalPage = true
+
+        XCTAssertFalse(sut.isFullScreenLoaderMounted)
+        XCTAssertFalse(sut.isWebViewCoveredByStandBy)
+    }
+
+    func testNavigatingOnAnExternalSignInPageDoesNotBringTheLoaderBack() {
+        let overlayState = WebFrontendOverlayState()
+        let sut = HomeAssistantViewModel(server: Server.fake(), overlayState: overlayState)
+        overlayState.isShowingExternalPage = true
+
+        overlayState.isLoading = true
+
+        XCTAssertFalse(sut.isFullScreenLoaderMounted)
+        XCTAssertFalse(sut.isWebViewCoveredByStandBy)
+    }
+
+    func testReturningToTheServerFromASignInPageShowsTheLoaderForTheFrontend() {
+        let overlayState = WebFrontendOverlayState()
+        let sut = HomeAssistantViewModel(server: Server.fake(), overlayState: overlayState)
+        overlayState.isShowingExternalPage = true
+        overlayState.isLoading = true
+
+        overlayState.isShowingExternalPage = false
+
+        XCTAssertTrue(sut.isFullScreenLoaderMounted)
+        XCTAssertTrue(sut.isWebViewCoveredByStandBy)
+    }
+
     func testStandByViewIsVisibleWhileTheLoaderIsUp() {
         let sut = HomeAssistantViewModel(server: Server.fake())
 

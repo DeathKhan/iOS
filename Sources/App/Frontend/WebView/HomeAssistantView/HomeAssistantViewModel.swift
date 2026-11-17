@@ -294,6 +294,11 @@ final class HomeAssistantViewModel: ObservableObject {
     private func bindOverlayState() {
         overlayState.$isLoading
             .sink { [weak self] isLoading in
+                // A sign-in page outside the server navigating (submitting a code, moving on to an identity
+                // provider) is not the frontend loading; covering it would hide the page the user is on.
+                if isLoading, self?.overlayState.isShowingExternalPage == true {
+                    return
+                }
                 if isLoading {
                     // A provisional navigation (initial load, pull-to-refresh, app-side refresh) loads the
                     // document from scratch, so a fresh frontend instance will fire `frontend/loaded` again.
@@ -303,6 +308,14 @@ final class HomeAssistantViewModel: ObservableObject {
                     self?.pullToRefreshObserver?.finishRefreshing()
                     self?.armLoaderWatchdog()
                 }
+            }
+            .store(in: &cancellables)
+
+        overlayState.$isShowingExternalPage
+            .removeDuplicates()
+            .dropFirst()
+            .sink { [weak self] isShowingExternalPage in
+                self?.handleExternalPageChange(isShowingExternalPage)
             }
             .store(in: &cancellables)
 
@@ -327,6 +340,22 @@ final class HomeAssistantViewModel: ObservableObject {
                 self?.armLoaderWatchdog()
             }
             .store(in: &cancellables)
+    }
+
+    /// The web view moved onto (or off) a page outside the server. Such a page is shown as soon as it
+    /// commits; coming back to the server starts a normal loader cycle for the frontend.
+    private func handleExternalPageChange(_ isShowingExternalPage: Bool) {
+        if isShowingExternalPage {
+            guard isFullScreenLoaderMounted || isWebViewCoveredByStandBy else { return }
+            Current.Log.info("Web view is on an external sign-in page, uncovering it")
+            dismissStandByView()
+        } else {
+            frontendLoadedOnce = false
+            beginFullScreenLoaderCycle()
+            if !overlayState.isLoading {
+                armLoaderWatchdog()
+            }
+        }
     }
 
     private func handleConnectionStateChange(_ connectionState: FrontEndConnectionState) {
@@ -410,7 +439,7 @@ final class HomeAssistantViewModel: ObservableObject {
         loaderWatchdogTask = Task { @MainActor [weak self] in
             try? await Task.sleep(for: timeout)
             guard let self, !Task.isCancelled, loaderCycleID == cycleID, isFullScreenLoaderMounted,
-                  !overlayState.isLoading, overlayState.emptyState == nil,
+                  !overlayState.isLoading, !overlayState.isShowingExternalPage, overlayState.emptyState == nil,
                   !overlayState.showsNoActiveURL else { return }
             Current.Log.error("Standby loader stuck with no frontend report after loading, checking the page")
             await uncoverFrontendOrRecover(cycleID: cycleID)
