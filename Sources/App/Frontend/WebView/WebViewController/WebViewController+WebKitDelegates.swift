@@ -41,6 +41,11 @@ extension WebViewController {
                 Current.Log.error("Received navigation action without URL for new window")
                 return nil
             }
+            // A sign-in page opening a window (an identity provider's popup) needs it in the app: the
+            // proxy's session has to land in this web view's cookie store.
+            if isExternalSignInURL(webView.url) || isExternalSignInURL(navigationAction.sourceFrame.request.url) {
+                return presentExternalSignInWindow(configuration: configuration)
+            }
             openURLInBrowser(url, self)
         }
         return nil
@@ -161,6 +166,13 @@ extension WebViewController {
         Current.Log.error(
             "Main frame HTTP \(httpResponse.statusCode) at \(navigationResponse.response.url?.absoluteString ?? "?"), cf-ray=\(cfRay), cf-mitigated=\(cfMitigated ?? "-")"
         )
+
+        // A sign-in page outside the server (an Access "forbidden" page, an identity provider's error)
+        // is for the user to read; it's not the server failing.
+        if isExternalSignInURL(navigationResponse.response.url) {
+            decisionHandler(.allow)
+            return
+        }
 
         // A proxy refusing the request over the client certificate gets no navigation error, only this
         // response, so it is the one place the certificate empty state can come from.
