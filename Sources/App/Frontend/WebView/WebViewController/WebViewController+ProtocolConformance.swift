@@ -165,6 +165,9 @@ extension WebViewController: WebViewControllerProtocol {
             return
         }
         Current.Log.verbose("Requesting webView navigation to \(String(describing: request.url?.absoluteString))")
+        if let identity = request.url?.hostAndPortIdentity {
+            lastLoadedHostAndPortIdentity = identity
+        }
         webView.load(request)
     }
 

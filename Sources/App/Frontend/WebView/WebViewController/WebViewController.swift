@@ -106,6 +106,10 @@ final class WebViewController: UIViewController, WKNavigationDelegate, WKUIDeleg
     /// `WebViewController.loadActiveURLStaleInterval` is assumed hung, cancelled, and replaced —
     /// a hung attempt must never block URL loading until the app is killed.
     var loadActiveURLTask: Task<Void, Never>?
+    /// `host:port` of the last URL this controller loaded itself. A web view sitting on any other host
+    /// that is not one of the server's own was sent there by the server (an auth proxy login such as
+    /// Cloudflare Access, Authelia or an SSO provider) and is left alone; see `isOnForeignPage`.
+    var lastLoadedHostAndPortIdentity: String?
     var loadActiveURLTaskStartDate: Date?
     /// The in-flight "send the web view home" redirect, if any. Tracked so a newer redirect replaces it and
     /// so a navigation that starts while it is resolving the root cancels it before it can navigate.

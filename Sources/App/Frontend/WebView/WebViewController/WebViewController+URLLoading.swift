@@ -223,6 +223,20 @@ extension WebViewController {
             return
         }
 
+        // A page on a host that is neither one of the server's URLs nor one we loaded is where the server's
+        // own reverse proxy sent us to sign in (Cloudflare Access, Authelia, an SSO provider). Reloading
+        // here -- which happens every time the app becomes active, e.g. after fetching an emailed code --
+        // moved that login onto the server's host mid-flow and broke it ("Invalid login session").
+        // The proxy redirects back to the server when the login completes.
+        if Self.isOnForeignPage(
+            currentURL: webView.url,
+            serverURLs: server.info.connection.configuredURLs + [webviewURL],
+            lastLoadedIdentity: lastLoadedHostAndPortIdentity
+        ) {
+            Current.Log.info("not reloading, web view is on an external sign-in page: \(webView.url?.host ?? "?")")
+            return
+        }
+
         // if we aren't showing a url or it's an incorrect url, update it -- otherwise, leave it alone
         let request = await URLRequest(url: resolvedLoadURL(for: webviewURL))
         // Re-check the background state too: backgrounding mid-flight could otherwise start a
@@ -432,5 +446,22 @@ extension WebViewController {
         // Update runs in background automatically, returns immediately
         Current.appDatabaseUpdater.update(server: server, forceUpdate: false, showProgress: false)
         Current.panelsUpdater.update()
+    }
+}
+
+extension WebViewController {
+    /// Whether `currentURL` is an http(s) page outside the server -- on none of its configured
+    /// addresses and not the address this controller last loaded -- which only happens when the
+    /// server (or a proxy in front of it) navigated the web view there, e.g. to sign in.
+    static func isOnForeignPage(currentURL: URL?, serverURLs: [URL], lastLoadedIdentity: String?) -> Bool {
+        guard let currentURL,
+              let scheme = currentURL.scheme?.lowercased(), scheme == "https" || scheme == "http",
+              let identity = currentURL.hostAndPortIdentity else {
+            return false
+        }
+        if identity == lastLoadedIdentity {
+            return false
+        }
+        return !URL.hostAndPortIdentities(of: serverURLs).contains(identity)
     }
 }
